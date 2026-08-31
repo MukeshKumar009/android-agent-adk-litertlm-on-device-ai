@@ -67,9 +67,12 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
 
     //ADK Core for Android
-    implementation("com.google.adk:google-adk-kotlin-core-android:0.1.0")
-    // Generates the `@Tool` FunctionTools for the Firebase and LiteRT-LM examples.
-    ksp("com.google.adk:google-adk-kotlin-processor:0.1.0")
+    implementation("com.google.adk:google-adk-kotlin-core:0.8.0")
+    // Required for LiteRtLmModel support
+    implementation("com.google.adk:google-adk-kotlin-litertlm:0.8.0")
     // Litert-LM For Android, on-device AI
-    implementation("com.google.ai.edge.litertlm:litertlm-android:latest.release")
+    implementation("com.google.ai.edge.litertlm:litertlm-android:0.13.1")
+
+    // Generates the `@Tool` FunctionTools for the Firebase and LiteRT-LM examples.
+    ksp("com.google.adk:google-adk-kotlin-processor:0.8.0")
 }

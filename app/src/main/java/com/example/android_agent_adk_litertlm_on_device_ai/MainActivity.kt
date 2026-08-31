@@ -15,6 +15,12 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.lifecycleScope
 import com.example.android_agent_adk_litertlm_on_device_ai.ui.theme.AndroidagentadklitertlmondeviceaiTheme
+import com.google.adk.kt.litertlm.LiteRtLmModel
+import com.google.adk.kt.runners.InMemoryRunner
+import com.google.adk.kt.sessions.InMemorySessionService
+import com.google.adk.kt.types.Content
+import com.google.adk.kt.types.Part
+import com.google.adk.kt.types.Role
 import com.google.ai.edge.litertlm.Backend
 import com.google.ai.edge.litertlm.Contents
 import com.google.ai.edge.litertlm.Conversation
@@ -23,17 +29,29 @@ import com.google.ai.edge.litertlm.Engine
 import com.google.ai.edge.litertlm.EngineConfig
 import com.google.ai.edge.litertlm.Message
 import com.google.ai.edge.litertlm.SamplerConfig
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import java.io.File
+import kotlin.concurrent.thread
 
 class MainActivity : ComponentActivity() {
-
+    private val TAG = "Agent"
     private val MODEL_PATH = "/sdcard/LLM/gemma-4-E2B-it.litertlm"
-    private var engine: Engine? = null
-    private var conversation: Conversation? = null
+    private val APP_NAME = "ADK Agent App"
+    private val sessionService = InMemorySessionService()
+    private var runner: InMemoryRunner? = null
     private lateinit var permissionHandler: PermissionHandler
+
+    /**
+     * Coroutine scope for agent work. Coroutines launch on the default dispatcher; UI updates are
+     * marshaled back via [runOnUiThread]. Cancelled in [onDestroy].
+     */
+    protected val scope = CoroutineScope(SupervisorJob())
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -48,81 +66,102 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        permissionHandler = PermissionHandler(this, ::loadLocalModel)
+        permissionHandler = PermissionHandler(this, ::setupAgent)
         permissionHandler.requestAccess()
+
     }
 
-    override fun onResume() {
-        super.onResume()
+    //Set up the Agent with ADK and LiteRT-LM
+    private fun setupAgent(){
+        // Off the main thread: looking for the model touches the filesystem.
+        scope.launch(Dispatchers.IO) {
 
-        permissionHandler.onResume()
-    }
+            //This can be your external or app data storage path
+            val modelFile = File(MODEL_PATH)
+            modelFile.let {
+                //Init the model and runner with agent
+                initRunner(modelFile)
 
-    private fun loadLocalModel() {
-        lifecycleScope.launch(Dispatchers.IO) {
-            try {
-                val file = File(MODEL_PATH)
-
-                require(file.isFile) {
-                    "Model not found: ${file.absolutePath}"
+                //Invoke prompt to agent
+                runner.let {
+                    // Call the agent from a coroutine (e.g. in a ViewModel or Activity)
+                    Log.d(TAG, "Calling agent...")
+                    sendToAgent(text = "What's the battery percentage?")
                 }
+            }
+        }
 
-                Log.d("LiteRT", "Loading: ${file.absolutePath}")
+    }
+    //Runner will be used to invoke prompt to agent
+    private fun initRunner(modelFile: File) {
+        try {
+            //Load model from file path
+            val litertLmModel = AgentADK.createModelLiteRtLM(modelFile, cacheDir)
+            Log.d(TAG, "Model loaded")
+            // Initialize the engine with model
+            litertLmModel.engine.initialize()
+            // Only now is there a native engine to release; closing one that failed to open throws.
+            releaseWithScope(litertLmModel)
 
-                engine = Engine(
-                    EngineConfig(
-                        modelPath = file.absolutePath,
-                        backend = Backend.CPU(),
-                        cacheDir = cacheDir.absolutePath
-                    )
+            //Create our agent with ADK framework
+            val agentADK = AgentADK.createAgent(litertLmModel, applicationContext);
+            //Create a runner with our agent, this will be used for prompt injection
+            runner =
+                InMemoryRunner(
+                    agent = agentADK,
+                    appName = APP_NAME,
+                    sessionService = sessionService,
                 )
 
+            Log.d(TAG, "Model Agent runner created")
 
-                startEngine()
+        } catch (e: Throwable) {
+            e.printStackTrace()
+        }
+    }
 
-                //Start Conversation with model
-                sendPromptToModel()
-
-            } catch (error: Exception) {
-                Log.e("LiteRT", "Model loading failed", error)
+    //Send prompt to agent using runner
+    private suspend fun sendToAgent(text: String) {
+        runner?.runAsync(
+            userId = "user-123",
+            sessionId = "session-123",
+            newMessage = Content(
+                role = Role.USER,
+                parts = listOf(Part(text = text)),
+            ),
+        )?.collect { event ->
+            val text = event.content?.parts?.firstOrNull()?.text
+            if (!text.isNullOrBlank()) {
+                // Update your UI with the agent's response
+                Log.d(TAG, "Answer: $text")
+            }
+        }
+    }
+    /**
+     * Releases [model]'s native engine once the activity scope completes, which is after `onDestroy`
+     * cancelled it and no turn is still running. Its own thread, because releasing is slow; failures
+     * are swallowed, because an uncaught one here would take the process down.
+     */
+    private fun releaseWithScope(model: LiteRtLmModel) {
+        scope.coroutineContext.job.invokeOnCompletion {
+            thread(name = "litertlm-close") {
+                try {
+                    model.close()
+                } catch (_: Throwable) {
+                    // Nothing to report to: the screen this belonged to is already gone.
+                }
             }
         }
     }
 
-    private suspend fun startEngine(){
-        // This can take several seconds. Keep it off the UI thread.
-        engine?.initialize()
-        Log.d("LiteRT", "Model loaded successfully")
-
-    }
-    private suspend fun sendPromptToModel(){
-        // Optional: Configure the system instruction, initial messages, sampling
-        // parameters, etc.
-        val conversationConfig = ConversationConfig(
-            systemInstruction = Contents.of("You are a helpful assistant."),
-            initialMessages = listOf(
-                Message.user("What is the capital city of the United States?"),
-                Message.model("Washington, D.C."),
-            ),
-            samplerConfig = SamplerConfig(topK = 10, topP = 0.95, temperature = 0.8),
-        )
-
-        val conversation = engine?.createConversation(conversationConfig)
-//        // Within a coroutine scope
-//        conversation?.sendMessageAsync("What is the capital of France?")
-//            ?.catch { } // Error during streaming
-//            ?.collect { Log.d("Model Answer", "" +it.toString() )}
-
-        val answer  = conversation?.sendMessage("What is the capital of France?")
-        Log.d("Model Answer", "" +answer)
-
+    override fun onResume() {
+        super.onResume()
+        permissionHandler.onResume()
     }
 
     override fun onDestroy() {
+        scope.cancel()
         super.onDestroy()
-        // Close the conversation when done
-        conversation?.close()
-        engine?.close()
     }
 }
 
