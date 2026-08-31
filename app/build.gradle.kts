@@ -6,13 +6,13 @@ plugins {
 }
 
 android {
-    namespace = "com.example.android_agent_adk_litertlm_on_device_ai"
+    namespace = "com.mukesh.android_agent_adk_litertlm_on_device_ai"
     compileSdk {
         version = release(37)
     }
 
     defaultConfig {
-        applicationId = "com.example.android_agent_adk_litertlm_on_device_ai"
+        applicationId = "com.mukesh.android_agent_adk_litertlm_on_device_ai"
         minSdk = 34
         targetSdk = 37
         versionCode = 1

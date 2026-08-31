@@ -1,4 +1,4 @@
-package com.example.android_agent_adk_litertlm_on_device_ai
+package com.mukesh.android_agent_adk_litertlm_on_device_ai
 
 import android.Manifest
 import android.content.Intent

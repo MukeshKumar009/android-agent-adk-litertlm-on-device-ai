@@ -1,14 +1,10 @@
-package com.example.android_agent_adk_litertlm_on_device_ai
+package com.mukesh.android_agent_adk_litertlm_on_device_ai
 
 import android.content.Context
-import com.example.android_agent_adk_litertlm_on_device_ai.AgentADK.NAME
 import com.google.adk.kt.agents.Instruction
 import com.google.adk.kt.agents.LlmAgent
-import com.google.adk.kt.litertlm.DefaultLiteRtLmEngine
 import com.google.adk.kt.litertlm.LiteRtLmModel
-import com.google.adk.kt.models.Model
 import com.google.ai.edge.litertlm.Backend
-import com.google.ai.edge.litertlm.Engine
 import com.google.ai.edge.litertlm.EngineConfig
 import java.io.File
 

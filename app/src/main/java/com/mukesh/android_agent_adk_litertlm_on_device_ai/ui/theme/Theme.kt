@@ -1,6 +1,5 @@
-package com.example.android_agent_adk_litertlm_on_device_ai.ui.theme
+package com.mukesh.android_agent_adk_litertlm_on_device_ai.ui.theme
 
-import android.app.Activity
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme

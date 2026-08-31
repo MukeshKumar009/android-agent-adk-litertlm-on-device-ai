@@ -1,4 +1,4 @@
-package com.example.android_agent_adk_litertlm_on_device_ai
+package com.mukesh.android_agent_adk_litertlm_on_device_ai
 
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.ext.junit.runners.AndroidJUnit4
