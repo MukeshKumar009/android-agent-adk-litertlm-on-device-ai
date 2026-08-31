@@ -5,11 +5,25 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -39,12 +53,20 @@ import java.io.File
 import kotlin.concurrent.thread
 
 class MainActivity : ComponentActivity() {
-    private val TAG = "Agent"
-    private val MODEL_PATH = "/sdcard/LLM/gemma-4-E2B-it.litertlm"
-    private val APP_NAME = "ADK Agent App"
+
+    private companion object{
+        const val TAG = "Agent"
+        const val MODEL_PATH = "/sdcard/LLM/gemma-4-E2B-it.litertlm"
+        const val APP_NAME = "ADK Agent App"
+    }
+
     private val sessionService = InMemorySessionService()
     private var runner: InMemoryRunner? = null
     private lateinit var permissionHandler: PermissionHandler
+    private var question by mutableStateOf("")
+    private var agentResponse by mutableStateOf("Setting up agent…")
+    private var isRunnerReady by mutableStateOf(false)
+    private var isAsking by mutableStateOf(false)
 
     /**
      * Coroutine scope for agent work. Coroutines launch on the default dispatcher; UI updates are
@@ -60,7 +82,14 @@ class MainActivity : ComponentActivity() {
             AndroidagentadklitertlmondeviceaiTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     MainLayout(
-                        modifier = Modifier.padding(innerPadding)
+                        modelName = File(MODEL_PATH).nameWithoutExtension,
+                        question = question,
+                        response = agentResponse,
+                        isRunnerReady = isRunnerReady,
+                        isAsking = isAsking,
+                        onQuestionChange = { question = it },
+                        onAsk = ::askAgent,
+                        modifier = Modifier.padding(innerPadding),
                     )
                 }
             }
@@ -71,7 +100,9 @@ class MainActivity : ComponentActivity() {
 
     }
 
-    //Set up the Agent with ADK and LiteRT-LM
+    /**
+     * Set up the Agent with ADK and LiteRT-LM
+     */
     private fun setupAgent(){
         // Off the main thread: looking for the model touches the filesystem.
         scope.launch(Dispatchers.IO) {
@@ -82,17 +113,19 @@ class MainActivity : ComponentActivity() {
                 //Init the model and runner with agent
                 initRunner(modelFile)
 
-                //Invoke prompt to agent
-                runner.let {
-                    // Call the agent from a coroutine (e.g. in a ViewModel or Activity)
-                    Log.d(TAG, "Calling agent...")
-                    sendToAgent(text = "What's the battery percentage?")
+                if (runner != null) {
+                    runOnUiThread { isRunnerReady = true }
+                    updateAgentResponse("Ask agent anything (Device model, battery percentage).")
+                } else {
+                    updateAgentResponse("Unable to initialize the model.")
                 }
             }
         }
 
     }
-    //Runner will be used to invoke prompt to agent
+    /**
+     * Runner will be used to invoke prompt to agent
+     */
     private fun initRunner(modelFile: File) {
         try {
             //Load model from file path
@@ -120,8 +153,33 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    //Send prompt to agent using runner
-    private suspend fun sendToAgent(text: String) {
+    /**
+     * Send prompt to agent using runner
+     */
+    private fun askAgent() {
+        val prompt = question.trim()
+        if (prompt.isEmpty() || isAsking) return
+
+        if (runner == null) {
+            agentResponse = "The model is still loading. Please try again shortly."
+            return
+        }
+
+        isAsking = true
+        agentResponse = "Thinking…"
+        scope.launch(Dispatchers.IO) {
+            try {
+                sendToAgent(prompt) { response -> updateAgentResponse(response) }
+            } catch (error: Throwable) {
+                Log.e(TAG, "Agent request failed", error)
+                updateAgentResponse("Unable to get an answer: ${error.message}")
+            } finally {
+                runOnUiThread { isAsking = false }
+            }
+        }
+    }
+
+    private suspend fun sendToAgent(text: String, onResponse: (String) -> Unit) {
         runner?.runAsync(
             userId = "user-123",
             sessionId = "session-123",
@@ -132,10 +190,14 @@ class MainActivity : ComponentActivity() {
         )?.collect { event ->
             val text = event.content?.parts?.firstOrNull()?.text
             if (!text.isNullOrBlank()) {
-                // Update your UI with the agent's response
                 Log.d(TAG, "Answer: $text")
+                onResponse(text)
             }
         }
+    }
+
+    private fun updateAgentResponse(response: String) {
+        runOnUiThread { agentResponse = response }
     }
     /**
      * Releases [model]'s native engine once the activity scope completes, which is after `onDestroy`
@@ -166,17 +228,73 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun MainLayout(modifier: Modifier = Modifier) {
-    Text(
-        text = "On Device Agent",
-        modifier = modifier.padding(24.dp)
-    )
+fun MainLayout(
+    modelName: String,
+    question: String,
+    response: String,
+    isRunnerReady: Boolean,
+    isAsking: Boolean,
+    onQuestionChange: (String) -> Unit,
+    onAsk: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        Text("Agent ADK On-Device", style = MaterialTheme.typography.headlineSmall)
+        Text("Model Name: $modelName", style = MaterialTheme.typography.bodyMedium)
+
+        Column(horizontalAlignment = Alignment.End) {
+            OutlinedTextField(
+                value = question,
+                onValueChange = onQuestionChange,
+                modifier = Modifier.fillMaxWidth(),
+                label = if (isRunnerReady) {
+                    { Text("Ask something") }
+                } else {
+                    null
+                },
+                placeholder = {
+                    Text(if (isRunnerReady) "Ask something" else "Loading model, please wait...")
+                },
+                enabled = isRunnerReady,
+                singleLine = true,
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Button(
+                onClick = onAsk,
+                enabled = isRunnerReady && question.isNotBlank() && !isAsking,
+            ) {
+                Text(if (isAsking) "Asking…" else "Ask")
+            }
+        }
+
+        Text("Agent Response", style = MaterialTheme.typography.titleMedium)
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Text(
+                text = response,
+                modifier = Modifier.padding(16.dp),
+                style = MaterialTheme.typography.bodyLarge,
+            )
+        }
+    }
 }
 
 @Preview(showBackground = true)
 @Composable
 fun MainLayoutPreview() {
     AndroidagentadklitertlmondeviceaiTheme {
-        MainLayout()
+        MainLayout(
+            modelName = "gemma-4-E2B-it",
+            question = "",
+            response = "Ask agent anything about device or battery.",
+            isRunnerReady = true,
+            isAsking = false,
+            onQuestionChange = {},
+            onAsk = {},
+        )
     }
 }

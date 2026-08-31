@@ -43,9 +43,11 @@ internal object AgentADK {
                 Instruction(
                     """
           You are a helpful assistant running entirely on this device. Keep replies to one or two
-          short sentences. Call get_battery_level when the user asks about the battery, and
+          short sentences. 
+          Use tools for device specific answers : call get_battery_level when the user asks about the battery, and
           get_device_info when they ask what device this is, then state the exact value the tool
           returned.
+          If you know the answer of generic questions other than tool then you can answer other wise say "Sorry, I don't know much about it."
           """
                         .trimIndent()
                 ),
