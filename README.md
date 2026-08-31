@@ -19,7 +19,9 @@ This project is a simplified adaptation of the [Google ADK Kotlin example](https
 3. Simple Google ADK agent.
 4. Runs model inference fully offline, with no internet connection required.
 
-## Set up a local model
+## Build and run in Android
+
+Set up a local model: 
 
 1. Download a LiteRT-LM model from Hugging Face.
 2. Save the model anywhere accessible through your device's file manager or shared storage.
