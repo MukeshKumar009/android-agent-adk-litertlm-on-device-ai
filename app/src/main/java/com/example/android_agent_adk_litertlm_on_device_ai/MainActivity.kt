@@ -1,20 +1,10 @@
 package com.example.android_agent_adk_litertlm_on_device_ai
 
-import android.Manifest
-import android.content.Intent
-import android.content.pm.PackageManager
-import android.content.Context
-import android.net.Uri
-import android.os.Build
 import android.os.Bundle
-import android.os.Environment
-import android.provider.Settings
 import android.util.Log
 import androidx.activity.ComponentActivity
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.core.content.ContextCompat
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
@@ -43,17 +33,7 @@ class MainActivity : ComponentActivity() {
     private val MODEL_PATH = "/sdcard/LLM/gemma-4-E2B-it.litertlm"
     private var engine: Engine? = null
     private var conversation: Conversation? = null
-    private var waitingForAllFilesAccess = false
-
-    private val requestReadExternalStorage = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (granted) {
-            loadLocalModel()
-        } else {
-            Log.e("LiteRT", "Storage permission was denied; cannot read the model from shared storage")
-        }
-    }
+    private lateinit var permissionHandler: PermissionHandler
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -68,44 +48,14 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        requestModelStorageAccess()
+        permissionHandler = PermissionHandler(this, ::loadLocalModel)
+        permissionHandler.requestAccess()
     }
 
     override fun onResume() {
         super.onResume()
 
-        if (waitingForAllFilesAccess &&
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.R &&
-            Environment.isExternalStorageManager()
-        ) {
-            waitingForAllFilesAccess = false
-            loadLocalModel()
-        }
-    }
-
-    private fun requestModelStorageAccess() {
-        when {
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> {
-                if (Environment.isExternalStorageManager()) {
-                    loadLocalModel()
-                } else {
-                    waitingForAllFilesAccess = true
-                    startActivity(
-                        Intent(
-                            Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
-                            Uri.parse("package:$packageName")
-                        )
-                    )
-                }
-            }
-
-            ContextCompat.checkSelfPermission(
-                this,
-                Manifest.permission.READ_EXTERNAL_STORAGE
-            ) == PackageManager.PERMISSION_GRANTED -> loadLocalModel()
-
-            else -> requestReadExternalStorage.launch(Manifest.permission.READ_EXTERNAL_STORAGE)
-        }
+        permissionHandler.onResume()
     }
 
     private fun loadLocalModel() {
