@@ -12,6 +12,13 @@ This Android app showcases agentic AI running entirely on a mobile device, witho
 
 This project is a simplified adaptation of the [Google ADK Kotlin example](https://github.com/google/adk-kotlin).
 
+## Features
+
+1. Loads LiteRT-LM models from local device storage.
+2. Supports tool calling for device information.
+3. Simple Google ADK agent.
+4. Runs model inference fully offline, with no internet connection required.
+
 ## Set up a local model
 
 1. Download a LiteRT-LM model from Hugging Face.
