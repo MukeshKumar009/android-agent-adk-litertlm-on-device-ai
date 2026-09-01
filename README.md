@@ -19,6 +19,10 @@ This project is a simplified adaptation of the [Google ADK Kotlin example](https
 3. Simple Google ADK agent.
 4. Runs model inference fully offline, with no internet connection required.
 
+## Architecture
+
+![Agent ADK On-Device architecture and data flow](images/architecture-diagram.png)
+
 ## Build and run in Android
 
 Set up a local model: 
