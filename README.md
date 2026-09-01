@@ -4,6 +4,10 @@
 
 This Android app showcases agentic AI running entirely on a mobile device, without cloud-based model inference. It combines the Kotlin-based Google ADK agentic framework with the LiteRT-LM runtime to run an on-device language model.
 
+## App Demo
+
+[▶ Play the app demo](screen-capture/app-demo.mp4)
+
 ## Technology
 
 - Agentic framework: [Google ADK](https://developer.android.com/ai/adk)
@@ -21,7 +25,7 @@ This project is a simplified adaptation of the [Google ADK Kotlin example](https
 
 ## Architecture
 
-![Agent ADK On-Device architecture and data flow](images/architecture-diagram.png)
+![Agent ADK On-Device architecture and data flow](screen-capture/architecture-diagram.png)
 
 ## Build and run in Android
 
