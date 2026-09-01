@@ -6,7 +6,8 @@ This Android app showcases agentic AI running entirely on a mobile device, witho
 
 ## App Demo
 
-[▶ Play the app demo](screen-capture/app-demo.mp4)
+https://github.com/user-attachments/assets/5807033e-f44a-444c-a6e6-f8ee72f27a66
+
 
 ## Technology
 
